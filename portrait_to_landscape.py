@@ -31,6 +31,11 @@ def load_photo(path: Path) -> Image.Image:
         return upright_image.convert("RGB")
 
 
+def is_portrait(photo: Image.Image) -> bool:
+    """Vrai si la photo est plus haute que large."""
+    return photo.height > photo.width
+
+
 def make_blurred_background(photo: Image.Image, size: tuple[int, int], blur_radius: int) -> Image.Image:
     """Zoome sur le centre de la photo pour remplir `size`, puis la floute."""
     zoomed = ImageOps.fit(photo, size, method=Image.Resampling.LANCZOS)
@@ -99,6 +104,10 @@ def main() -> None:
 
     for photo_path in find_photos(args.inputs):
         photo = load_photo(photo_path)
+        if not is_portrait(photo):
+            print(f"{photo_path} : ignorée (pas en portrait)")
+            continue
+
         landscape = portrait_to_landscape(photo, output_size, args.blur, args.feather)
 
         output_path = args.output_dir / f"{photo_path.stem}_16x9.jpg"
