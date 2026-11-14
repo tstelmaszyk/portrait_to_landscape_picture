@@ -7,16 +7,18 @@ Exemples :
     python portrait_to_landscape.py photo.jpg
     python portrait_to_landscape.py photos/ --output-dir sortie
     python portrait_to_landscape.py photo.jpg --width 3840 --height 2160
+    python portrait_to_landscape.py photo.jpg --feather 0
 """
 
 import argparse
 from pathlib import Path
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 DEFAULT_WIDTH = 1920
 DEFAULT_HEIGHT = 1080
 DEFAULT_BLUR_RADIUS = 40
+DEFAULT_FEATHER = 0  # largeur en pixels du fondu sur les bords de la photo
 BACKGROUND_BRIGHTNESS = 0.8  # < 1 assombrit le fond pour faire ressortir la photo
 JPEG_QUALITY = 95
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
@@ -36,22 +38,34 @@ def make_blurred_background(photo: Image.Image, size: tuple[int, int], blur_radi
     return ImageEnhance.Brightness(blurred).enhance(BACKGROUND_BRIGHTNESS)
 
 
-def paste_centered(background: Image.Image, photo: Image.Image) -> Image.Image:
-    """Réduit la photo pour qu'elle tienne entière dans le fond, et la colle au centre."""
+def make_feather_mask(size: tuple[int, int], feather: int) -> Image.Image:
+    """Masque opaque au centre qui devient transparent sur les `feather` pixels
+    des bords gauche et droit (le haut et le bas restent nets)."""
+    width, height = size
+    mask = Image.new("L", size, color=0)
+    opaque_area = (feather, 0, width - 1 - feather, height - 1)
+    ImageDraw.Draw(mask).rectangle(opaque_area, fill=255)
+    return mask.filter(ImageFilter.GaussianBlur(feather / 2))
+
+
+def paste_centered(background: Image.Image, photo: Image.Image, feather: int) -> Image.Image:
+    """Réduit la photo pour qu'elle tienne entière dans le fond, et la colle au centre
+    avec des bords adoucis pour qu'elle se fonde dans l'arrière-plan."""
     fitted_photo = ImageOps.contain(photo, background.size, method=Image.Resampling.LANCZOS)
+    feather_mask = make_feather_mask(fitted_photo.size, feather)
 
     left = (background.width - fitted_photo.width) // 2
     top = (background.height - fitted_photo.height) // 2
 
     result = background.copy()
-    result.paste(fitted_photo, (left, top))
+    result.paste(fitted_photo, (left, top), mask=feather_mask)
     return result
 
 
-def portrait_to_landscape(photo: Image.Image, size: tuple[int, int], blur_radius: int) -> Image.Image:
+def portrait_to_landscape(photo: Image.Image, size: tuple[int, int], blur_radius: int, feather: int) -> Image.Image:
     """Construit l'image paysage : fond flouté + photo entière au centre."""
     background = make_blurred_background(photo, size, blur_radius)
-    return paste_centered(background, photo)
+    return paste_centered(background, photo, feather)
 
 
 def find_photos(inputs: list[Path]) -> list[Path]:
@@ -74,6 +88,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH, help=f"Largeur de sortie (défaut : {DEFAULT_WIDTH}).")
     parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help=f"Hauteur de sortie (défaut : {DEFAULT_HEIGHT}).")
     parser.add_argument("--blur", type=int, default=DEFAULT_BLUR_RADIUS, help=f"Intensité du flou (défaut : {DEFAULT_BLUR_RADIUS}).")
+    parser.add_argument("--feather", type=int, default=DEFAULT_FEATHER, help=f"Fondu des bords de la photo en pixels, 0 pour désactiver (défaut : {DEFAULT_FEATHER}).")
     return parser.parse_args()
 
 
@@ -84,7 +99,7 @@ def main() -> None:
 
     for photo_path in find_photos(args.inputs):
         photo = load_photo(photo_path)
-        landscape = portrait_to_landscape(photo, output_size, args.blur)
+        landscape = portrait_to_landscape(photo, output_size, args.blur, args.feather)
 
         output_path = args.output_dir / f"{photo_path.stem}_16x9.jpg"
         landscape.save(output_path, quality=JPEG_QUALITY)
