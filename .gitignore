@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+.venv/
+
+# Photos à traiter et résultats générés
+output/
+*.jpg
+*.jpeg
+*.png
+*.heic
