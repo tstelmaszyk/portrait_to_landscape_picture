@@ -5,7 +5,7 @@
 __pycache__/
 .venv/
 
-# Photos à traiter et résultats générés
+# Input photos and generated output
 output/
 *.jpg
 *.jpeg
