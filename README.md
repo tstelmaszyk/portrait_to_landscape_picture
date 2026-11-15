@@ -1,4 +1,4 @@
-# portrait-to-landscape
+# portrait_to_landscape
 
 Command-line tool that converts portrait photos into 16:9 landscape images for
 video editing. Instead of black bars on the sides, the photo is placed whole in
